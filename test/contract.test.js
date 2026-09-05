@@ -23,7 +23,7 @@ test('the browser guard actually fires', async () => {
       assert.equal(e instanceof NumraError, true);
       assert.match(e.message, /never run in a browser/);
       /* It must also say what to do instead, or it is just an obstacle. */
-      assert.match(e.message, /@numra\/express|backend/);
+      assert.match(e.message, /@getnumra\/express|backend/);
       return true;
     });
   } finally {

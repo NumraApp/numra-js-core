@@ -1,8 +1,8 @@
-# @numra/core
+# @getnumra/core
 
 **Check a buyer's phone number before you ship a cash-on-delivery order, and report back what happened.**
 
-[![npm version](https://img.shields.io/npm/v/@numra/core)](https://www.npmjs.com/package/@numra/core) [![npm downloads](https://img.shields.io/npm/dm/@numra/core)](https://www.npmjs.com/package/@numra/core) [![licence: MIT](https://img.shields.io/npm/l/@numra/core)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/@getnumra/core)](https://www.npmjs.com/package/@getnumra/core) [![npm downloads](https://img.shields.io/npm/dm/@getnumra/core)](https://www.npmjs.com/package/@getnumra/core) [![licence: MIT](https://img.shields.io/npm/l/@getnumra/core)](LICENSE)
 
 Numra API client — phone risk signals for cash-on-delivery orders in Morocco.
 
@@ -10,7 +10,7 @@ Zero dependencies. Ships as plain ESM, no build step, so what is on npm is
 what is in the repo.
 
 ```bash
-npm install @numra/core
+npm install @getnumra/core
 ```
 
 ## Server-side only
@@ -23,9 +23,9 @@ browser build. The split:
 
 | You are writing | Use |
 |---|---|
-| A backend | `@numra/core`, or the framework wrapper for it |
-| Express / Fastify / Next / Nuxt route | `@numra/express`, `@numra/fastify`, `@numra/next`, `@numra/nuxt` |
-| A React / Vue / Angular / Svelte page | `@numra/react` etc — they call **your** backend, never Numra |
+| A backend | `@getnumra/core`, or the framework wrapper for it |
+| Express / Fastify / Next / Nuxt route | `@getnumra/express`, `@getnumra/fastify`, `@getnumra/next`, `@getnumra/nuxt` |
+| A React / Vue / Angular / Svelte page | `@getnumra/react` etc — they call **your** backend, never Numra |
 
 Keep the key in the environment and out of version control. A key committed
 once is a key in the history of every clone and fork of that repository, and
@@ -34,7 +34,7 @@ rotating it is the only fix.
 ## Checking a number
 
 ```js
-import { Numra } from '@numra/core';
+import { Numra } from '@getnumra/core';
 
 const numra = new Numra({ apiKey: process.env.NUMRA_API_KEY });
 
@@ -91,7 +91,7 @@ replay and for a number that is no longer tracked, and `message` says which.
 ## Verifying webhooks
 
 ```js
-import { verifyWebhook } from '@numra/core';
+import { verifyWebhook } from '@getnumra/core';
 
 // Mounted before any app-wide express.json(). A parser that has already run
 // leaves req.body a parsed object and the exact bytes gone.
@@ -128,15 +128,15 @@ guard there is usually a session that owns a cart, which any visitor can get by
 loading the page. One session in a loop is then a bill.
 
 So put a limit on the route as well, keyed per IP or per session, before it
-reaches the client. `@numra/express`, `@numra/fastify`, `@numra/next` and
-`@numra/nuxt` each show the idiomatic way to do it in that framework.
+reaches the client. `@getnumra/express`, `@getnumra/fastify`, `@getnumra/next` and
+`@getnumra/nuxt` each show the idiomatic way to do it in that framework.
 
 ## Errors
 
 Switch on `code`. `message` is written for humans and changes without notice.
 
 ```js
-import { NumraError } from '@numra/core';
+import { NumraError } from '@getnumra/core';
 
 try {
   await numra.check(phone);
@@ -218,11 +218,11 @@ Server:
 
 | Package | Repository |
 |---|---|
-| `@numra/core` | [numra-js-core](https://github.com/NumraApp/numra-js-core) — this repo |
-| `@numra/express` | [numra-express](https://github.com/NumraApp/numra-express) |
-| `@numra/fastify` | [numra-fastify](https://github.com/NumraApp/numra-fastify) |
-| `@numra/next` | [numra-next](https://github.com/NumraApp/numra-next) |
-| `@numra/nuxt` | [numra-nuxt](https://github.com/NumraApp/numra-nuxt) |
+| `@getnumra/core` | [numra-js-core](https://github.com/NumraApp/numra-js-core) — this repo |
+| `@getnumra/express` | [numra-express](https://github.com/NumraApp/numra-express) |
+| `@getnumra/fastify` | [numra-fastify](https://github.com/NumraApp/numra-fastify) |
+| `@getnumra/next` | [numra-next](https://github.com/NumraApp/numra-next) |
+| `@getnumra/nuxt` | [numra-nuxt](https://github.com/NumraApp/numra-nuxt) |
 | `numra/numra-php` | [numra-php](https://github.com/NumraApp/numra-php) |
 | `numra/laravel` | [numra-laravel](https://github.com/NumraApp/numra-laravel) |
 
@@ -230,11 +230,11 @@ Browser:
 
 | Package | Repository |
 |---|---|
-| `@numra/browser` | [numra-browser](https://github.com/NumraApp/numra-browser) |
-| `@numra/react` | [numra-react](https://github.com/NumraApp/numra-react) |
-| `@numra/vue` | [numra-vue](https://github.com/NumraApp/numra-vue) |
-| `@numra/svelte` | [numra-svelte](https://github.com/NumraApp/numra-svelte) |
-| `@numra/angular` | [numra-angular](https://github.com/NumraApp/numra-angular) |
+| `@getnumra/browser` | [numra-browser](https://github.com/NumraApp/numra-browser) |
+| `@getnumra/react` | [numra-react](https://github.com/NumraApp/numra-react) |
+| `@getnumra/vue` | [numra-vue](https://github.com/NumraApp/numra-vue) |
+| `@getnumra/svelte` | [numra-svelte](https://github.com/NumraApp/numra-svelte) |
+| `@getnumra/angular` | [numra-angular](https://github.com/NumraApp/numra-angular) |
 
 Documentation for all of them is at [numra.ma/docs](https://numra.ma/docs).
 

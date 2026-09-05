@@ -1,7 +1,7 @@
 import { NumraError } from './errors.js';
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   @numra/core — the reference client
+   @getnumra/core — the reference client
    ───────────────────────────────────────────────────────────────────────────
    SERVER-SIDE ONLY, and the constructor enforces it.
 
@@ -9,8 +9,8 @@ import { NumraError } from './errors.js';
    hands. The check lives in the constructor rather than in the README because
    a warning in a README has never once stopped anyone.
 
-   Browser packages (@numra/react and friends) call the merchant's own
-   endpoint. Server packages (@numra/express and friends) are that endpoint
+   Browser packages (@getnumra/react and friends) call the merchant's own
+   endpoint. Server packages (@getnumra/express and friends) are that endpoint
    and hold this client.
 
    ── No dependencies, and no build ─────────────────────────────────────────
@@ -110,8 +110,8 @@ export class Numra {
     if (typeof g.document !== 'undefined' && typeof g.window !== 'undefined') {
       throw new NumraError(
         'LICENSE_INVALID',
-        '@numra/core must never run in a browser — an API key in a bundle is readable by anyone who opens dev tools, and this key reads a shared fraud database. ' +
-        'Call your own backend from the browser instead: mount @numra/express (or fastify / next / nuxt / laravel) and use @numra/react (or vue / angular / svelte) on the page.',
+        '@getnumra/core must never run in a browser — an API key in a bundle is readable by anyone who opens dev tools, and this key reads a shared fraud database. ' +
+        'Call your own backend from the browser instead: mount @getnumra/express (or fastify / next / nuxt / laravel) and use @getnumra/react (or vue / angular / svelte) on the page.',
       );
     }
 

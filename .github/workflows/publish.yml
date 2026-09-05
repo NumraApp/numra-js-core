@@ -13,22 +13,22 @@
 # PUBLISH ORDER — NOT OPTIONAL
 # Three packages have to be on npm before the other nine are tagged:
 #
-#     1.  @numra/core        (no dependencies)
-#     1.  @numra/browser     (no dependencies — independent of core, same step)
+#     1.  @getnumra/core        (no dependencies)
+#     1.  @getnumra/browser     (no dependencies — independent of core, same step)
 #     2.  everything else
 #
-#         @numra/core     ← express, fastify, next, nuxt
-#         @numra/browser  ← react, vue, svelte, angular
+#         @getnumra/core     ← express, fastify, next, nuxt
+#         @getnumra/browser  ← react, vue, svelte, angular
 #
 # Tag a dependent first and its `npm ci` fails with `ETARGET No matching
-# version found for @numra/core@^1.0.0`, because the version it asks for does
+# version found for @getnumra/core@^1.0.0`, because the version it asks for does
 # not exist yet. That is a failed release, not a delayed one: the tag is
 # already pushed and the version number is burnt.
 #
 # The same order governs the lockfiles. A dependent's package-lock.json cannot
 # record an integrity hash for a tarball the registry does not have, so the
 # nine dependents carry a `resolved` URL with no `integrity` for their
-# @numra/* entry. npm fills it in on the first install after core and browser
+# @getnumra/* entry. npm fills it in on the first install after core and browser
 # are published — commit that. Every third-party dependency is fully pinned
 # either way, which is what the lockfile is for.
 #
@@ -106,10 +106,10 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci --include=dev
 
-      # `npm publish` does not build. @numra/angular is the only SDK that has a
+      # `npm publish` does not build. @getnumra/angular is the only SDK that has a
       # compile step (Angular components must be compiled ahead of time), and
       # without this its tarball is raw .ts with no entry point — every
-      # `import { NumraCheckService } from '@numra/angular'` fails with
+      # `import { NumraCheckService } from '@getnumra/angular'` fails with
       # ERR_MODULE_NOT_FOUND, and a published version cannot be replaced.
       #
       # Detected rather than commented "angular only", so that a repo which

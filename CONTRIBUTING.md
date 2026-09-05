@@ -1,4 +1,4 @@
-# Contributing to @numra/core
+# Contributing to @getnumra/core
 
 Patches are welcome. This is a small package with a large blast radius — it
 holds a credential that reads a shared fraud ledger and spends a merchant's
@@ -37,8 +37,8 @@ the fix is almost never to relax the test.
 
 These repositories are split out of a single monorepo. What you see here is
 one package of twelve, and this one is the shared floor for the JavaScript
-server side: `@numra/express`, `@numra/fastify`, `@numra/next` and
-`@numra/nuxt` are thin adapters over `createHandlers` in `src/server.js`.
+server side: `@getnumra/express`, `@getnumra/fastify`, `@getnumra/next` and
+`@getnumra/nuxt` are thin adapters over `createHandlers` in `src/server.js`.
 
 So:
 

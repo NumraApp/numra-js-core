@@ -1,5 +1,5 @@
 {
-  "name": "@numra/core",
+  "name": "@getnumra/core",
   "version": "1.0.0",
   "description": "Numra API client — phone risk signals for cash-on-delivery orders. Server-side only, zero dependencies.",
   "license": "MIT",

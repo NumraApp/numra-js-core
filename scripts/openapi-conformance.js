@@ -133,8 +133,8 @@ async function main() {
   }
 
   if (called.size === 0) {
-    /* True of every wrapper package: @numra/express and friends reach the API
-       only through @numra/core, so there is no path here to check. Saying so
+    /* True of every wrapper package: @getnumra/express and friends reach the API
+       only through @getnumra/core, so there is no path here to check. Saying so
        is the point — silence would read as a pass. */
     skipped.push('endpoint conformance — this repo\'s source requests no API path of its own');
   } else {

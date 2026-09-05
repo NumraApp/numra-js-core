@@ -169,7 +169,7 @@ export declare function isValidWebhook(
 ): boolean;
 
 /* ── Framework-neutral request handling ─────────────────────────────────────
-   What @numra/express, @numra/fastify, @numra/next and @numra/nuxt are built
+   What @getnumra/express, @getnumra/fastify, @getnumra/next and @getnumra/nuxt are built
    on. Use it directly only if you are writing an adapter for a framework we
    do not ship — the four decisions below are the ones that must not drift.  */
 

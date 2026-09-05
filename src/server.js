@@ -5,7 +5,7 @@ import { verifyWebhook, WebhookVerificationError } from './webhooks.js';
 /* ═══════════════════════════════════════════════════════════════════════════
    Framework-neutral request handling
    ───────────────────────────────────────────────────────────────────────────
-   @numra/express, @numra/fastify, @numra/next and @numra/nuxt all do the same
+   @getnumra/express, @getnumra/fastify, @getnumra/next and @getnumra/nuxt all do the same
    four things: authorise, call Numra, narrow the result for the browser, and
    translate upstream failures. Written once per framework, those four things
    drift — and the one that drifts silently is "deny by default", which is the

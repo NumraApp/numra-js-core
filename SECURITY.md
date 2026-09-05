@@ -1,6 +1,6 @@
 # Security policy
 
-`@numra/core` holds a credential that reads a shared fraud ledger and spends a
+`@getnumra/core` holds a credential that reads a shared fraud ledger and spends a
 merchant's paid quota. A weakness in it is worth something to the people the
 ledger exists to describe, so please treat one accordingly.
 

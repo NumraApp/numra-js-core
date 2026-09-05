@@ -6,7 +6,7 @@ export {
   WebhookVerificationError,
 } from './webhooks.js';
 
-/* Shared by @numra/express, @numra/fastify, @numra/next and @numra/nuxt.
+/* Shared by @getnumra/express, @getnumra/fastify, @getnumra/next and @getnumra/nuxt.
    Framework packages are thin adapters over these; the logic that must not
    drift between them — deny-by-default above all — lives in one file. */
 export {
