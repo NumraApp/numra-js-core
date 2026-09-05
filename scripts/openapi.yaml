@@ -1,0 +1,540 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Numra merchant API — the contract this client is built against
+# ───────────────────────────────────────────────────────────────────────────
+# The merchant surface: what a client may call with an API key. This file is
+# the source of truth every Numra SDK is written against, vendored here so the
+# release pipeline can check this client against it before publishing.
+#
+# If a client and this file disagree, this file is right and the client is the
+# bug. Report a mismatch at https://github.com/NumraApp — it means one of the
+# SDKs has drifted, and probably more than one.
+#
+# Hand-authored, not generated from the server's routes: generating it would
+# encode today's accidents as the contract. Where the implementation and the
+# intent differ, this states the intent.
+# ═══════════════════════════════════════════════════════════════════════════
+
+openapi: 3.1.0
+
+info:
+  title: Numra API
+  version: 1.0.0
+  summary: Phone-based risk signals for cash-on-delivery orders in Morocco.
+  description: |
+    Numra answers one question: given a phone number behind a
+    cash-on-delivery order, is this parcel likely to come back?
+
+    Two calls carry the whole integration. `POST /v1/phone/lookup` asks
+    before you ship. `POST /v1/phone/outcome` tells us what happened, which
+    is what makes the next merchant's answer better — the ledger is shared,
+    and a merchant who never reports outcomes is reading a database they do
+    not contribute to.
+
+    **Credentials never belong in a browser.** Every endpoint here is
+    server-to-server. The browser packages (`@getnumra/react`, `@getnumra/vue` and
+    the rest) call *your* backend; the server packages (`@getnumra/express`,
+    `@getnumra/fastify`, `numra/laravel` …) are that backend and hold the key.
+  contact:
+    name: Numra support
+    email: support@numra.ma
+    url: https://numra.ma
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.numra.ma
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Phone
+    description: Check a number before shipping, and report what happened after.
+  - name: Licence
+    description: Credential and quota state.
+
+paths:
+  /v1/phone/lookup:
+    post:
+      tags: [Phone]
+      operationId: checkPhone
+      summary: Check a phone number
+      description: |
+        Returns the resolved verdict for a number, and optionally records an
+        order event at the same time.
+
+        **`X-Country: MA` is required.** Morocco is the only country served;
+        any other value is rejected with `COUNTRY_NOT_ALLOWED` rather than
+        answered with an empty result, because an SDK silently getting
+        "unknown" for every number in another market looks like a working
+        integration and is not one.
+
+        **Reading the answer.** `risk_score` alone cannot distinguish "we
+        checked this person and they are fine" from "we have never heard of
+        this person" — both come back low. Use `is_rated` and `confidence`
+        to tell them apart. A client that treats an unrated stranger as a
+        clean bill of health is misreading the response; see
+        `trust_score` for the figure that carries that distinction.
+      parameters:
+        - $ref: '#/components/parameters/Country'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LookupRequest' }
+            examples:
+              minimal:
+                summary: Just check the number
+                value: { phone: "0600000000" }
+              withEvent:
+                summary: Check and record an outcome in one call
+                value:
+                  phone: "+212600000000"
+                  event_type: REFUSED_COD
+                  context: { order_total: 349, currency: MAD, region: "Casablanca" }
+      responses:
+        '200':
+          description: The resolved verdict.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LookupResponse' }
+        '400': { $ref: '#/components/responses/InvalidPayload' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/phone/outcome:
+    post:
+      tags: [Phone]
+      operationId: reportOutcome
+      summary: Report what happened to an order
+      description: |
+        The other half of the integration, and the half that is usually
+        skipped. A merchant who only ever calls `lookup` is reading a ledger
+        they never write to.
+
+        **Idempotent on `(merchant, order_id, outcome_type)`.** Sending the
+        same outcome twice is a no-op that returns `200` with
+        `recorded: false, idempotent: true` — safe to retry, safe to call
+        from a webhook that fires more than once. A genuinely new record
+        returns `201`.
+      parameters:
+        - $ref: '#/components/parameters/Country'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OutcomeRequest' }
+            examples:
+              refused:
+                value:
+                  phone: "+212600000000"
+                  order_id: "1042"
+                  outcome_type: REFUSED_COD
+                  order_total: 349
+                  currency: MAD
+      responses:
+        '201':
+          description: Recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutcomeResponse' }
+        '200':
+          description: |
+            Already recorded (idempotent replay), or the number is not
+            tracked. `recorded` is `false` in both cases; the message says
+            which.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutcomeResponse' }
+        '400': { $ref: '#/components/responses/InvalidPayload' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /v1/license/verify:
+    post:
+      tags: [Licence]
+      operationId: verifyLicense
+      summary: Check credential status and remaining quota
+      description: |
+        What an SDK calls on start-up or on a settings screen. Not required
+        before `lookup` — `lookup` performs its own authorisation, and
+        calling this first only doubles the round trips.
+      parameters:
+        - $ref: '#/components/parameters/Country'
+      responses:
+        '200':
+          description: Credential state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicenseResponse' }
+        '400': { $ref: '#/components/responses/InvalidPayload' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            Country not allowed, or the licence is already bound to a
+            different site (`LICENSE_BOUND`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+# ── Outbound: what Numra sends to the merchant ────────────────────────────
+# Every SDK ships a verifier for these, and every SDK must implement the same
+# scheme. Getting this wrong is not a cosmetic bug — a client that skips the
+# timestamp lets anyone replay a captured "not blacklisted" payload.
+webhooks:
+  verification.completed:
+    post:
+      operationId: onVerificationCompleted
+      summary: A check ran
+      description: Fired on every successful lookup.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebhookEnvelope' }
+      responses:
+        '2XX':
+          description: |
+            Any 2xx acknowledges. Non-2xx and timeouts are retried with
+            backoff; see `Numra-Timestamp` for replay defence.
+  verification.flagged:
+    post:
+      operationId: onVerificationFlagged
+      summary: A check came back risky
+      description: |
+        Fired only when the number is blacklisted or resolves to HIGH or
+        CRITICAL. Subscribe to this rather than filtering
+        `verification.completed` yourself — a channel that fires on every
+        low-risk result is a channel merchants learn to ignore.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebhookEnvelope' }
+      responses:
+        '2XX': { description: Acknowledged. }
+  risk.high_risk_detected:
+    post:
+      operationId: onHighRiskDetected
+      summary: High-risk number seen
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebhookEnvelope' }
+      responses:
+        '2XX': { description: Acknowledged. }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer <credential>`.
+
+        The credential may be a raw licence key **or** an API key; the API
+        resolves either to the same licence. SDKs should treat it as an
+        opaque string and never parse it.
+
+        Server-side only. There is no publishable or domain-locked key: this
+        is a shared fraud ledger, and a key in a JavaScript bundle is a key
+        in everyone's hands. Browser packages call the merchant's own
+        backend, which holds this credential.
+
+  parameters:
+    Country:
+      name: X-Country
+      in: header
+      required: true
+      schema: { type: string, enum: [MA] }
+      description: |
+        Morocco only. Any other value returns `COUNTRY_NOT_ALLOWED` — a
+        deliberate refusal rather than an empty result, so an SDK pointed at
+        an unsupported market fails loudly instead of reporting every number
+        as unknown.
+
+  responses:
+    InvalidPayload:
+      description: The request body failed validation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { ok: false, error: INVALID_PAYLOAD, message: "phone is required" }
+    Unauthorized:
+      description: Missing, malformed, expired or revoked credential.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { ok: false, error: LICENSE_MISSING, message: "Missing Authorization Bearer token" }
+    Forbidden:
+      description: Valid credential, but not permitted for this request.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { ok: false, error: COUNTRY_NOT_ALLOWED, message: "Only MA is supported" }
+    RateLimited:
+      description: |
+        Per-minute rate limit or daily quota exhausted. SDKs must honour
+        `Retry-After` when present and must not retry a 429 immediately —
+        retrying into a quota wall is how an integration turns one exhausted
+        day into a sustained hammering.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds to wait before retrying.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+
+    Error:
+      type: object
+      required: [ok, error]
+      properties:
+        ok: { type: boolean, const: false }
+        error:
+          type: string
+          description: |
+            Stable machine-readable code. SDKs map these to typed errors and
+            must switch on this, never on `message` — `message` is written
+            for humans and changes without notice.
+          enum:
+            - LICENSE_MISSING
+            - LICENSE_INVALID
+            - LICENSE_EXPIRED
+            - LICENSE_BOUND
+            - COUNTRY_NOT_ALLOWED
+            - INVALID_PAYLOAD
+            - RATE_LIMITED
+            - QUOTA_EXCEEDED
+            - ENDPOINT_NOT_FOUND
+        message: { type: string }
+        docs_url: { type: string, format: uri }
+        expires_at: { type: string, format: date-time }
+        renew_url: { type: string, format: uri }
+
+    OutcomeType:
+      type: string
+      description: What actually happened to the parcel.
+      enum: [DELIVERED, PAID_ONLINE, REFUSED_COD, CANCELLED, NO_ANSWER, FRAUD_CONFIRMED, RETURNED]
+
+    RiskLevel:
+      type: string
+      enum: [UNRATED, LOW, MEDIUM, HIGH, CRITICAL]
+
+    Verdict:
+      type: string
+      description: |
+        The resolved answer, in one word, with `verdict_source` saying which
+        rule produced it. Render from these rather than re-deriving a
+        conclusion from the raw flags — surfaces that each derived their own
+        answer are how a blacklisted number once displayed as LOW.
+      enum: [BLOCKED, OVERRIDE, TRUSTED, RATED, UNRATED]
+
+    LookupRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          minLength: 6
+          maxLength: 30
+          description: |
+            Any Moroccan spelling. `0600000000`, `+212600000000`,
+            `00212600000000`, spaced or dashed all normalise to the same
+            E.164 number. Do not normalise client-side.
+        event_type:
+          $ref: '#/components/schemas/OutcomeType'
+        include_timeline:
+          type: boolean
+          default: false
+          description: Include the five most recent events for this number.
+        context:
+          type: object
+          properties:
+            payment_method: { type: string, example: COD }
+            order_total: { type: number, minimum: 0 }
+            currency: { type: string, example: MAD }
+            region: { type: string }
+            note: { type: string, maxLength: 300 }
+
+    LookupResponse:
+      type: object
+      required:
+        [ok, phone, country, carrier, verdict, verdict_source, risk_score,
+         risk_level, trust_score, confidence, is_rated, total_events,
+         is_blacklisted, cache_ttl_seconds]
+      properties:
+        ok: { type: boolean, const: true }
+        phone: { type: string, description: E.164, example: "+212600000000" }
+        country: { type: string, const: MA }
+        carrier:
+          type: object
+          properties:
+            code: { type: string, nullable: true, enum: [IAM, ORANGE, INWI, null] }
+            label: { type: string, example: "Maroc Telecom" }
+        verdict: { $ref: '#/components/schemas/Verdict' }
+        verdict_source:
+          type: string
+          enum: [manual_blacklist, network_blacklist, admin_override, whitelist, events, no_evidence]
+          description: Which rule produced the verdict. This is what turns a support conversation about a mystery into one about a rule.
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Risk, 0–100. Higher is worse.
+        risk_score_raw:
+          type: number
+          description: Engine-internal diagnostic. Not a merchant-facing figure; do not display or threshold on it.
+        risk_level: { $ref: '#/components/schemas/RiskLevel' }
+        trust_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: |
+            Trust, 0–100, where HIGH means trustworthy — the inverse axis to
+            `risk_score`, pulled toward a neutral 50 in proportion to how
+            little is known. A number with no history at all is trust 50,
+            confidence 0. This is the field that distinguishes a stranger
+            from a vouched-for customer.
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: How much evidence stands behind the scores. 0 means none.
+        is_rated:
+          type: boolean
+          description: |
+            Whether any events exist for this number. Derived from event
+            count, not from `confidence` — a stored default once made
+            `confidence > 0` report unrated numbers as rated.
+        total_events: { type: integer, minimum: 0 }
+        customer_style:
+          nullable: true
+          type: object
+          description: |
+            The merchant-visible behavioural label, sent whole — code for
+            logic, label/icon/colour for display — so a storefront renders
+            the taxonomy without shipping a copy of it.
+          properties:
+            code: { type: string }
+            label: { type: string }
+            icon: { type: string }
+            color: { type: string }
+            risk_sensitivity: { type: number }
+        is_blacklisted: { type: boolean }
+        blacklisted_reason: { type: string, nullable: true }
+        last_risk_update_at: { type: string, format: date-time, nullable: true }
+        cache_ttl_seconds:
+          type: integer
+          description: How long this answer may be cached. SDKs with a cache must honour it.
+        timeline:
+          type: array
+          nullable: true
+          description: Present only when `include_timeline` was true.
+          items:
+            type: object
+            properties:
+              event_type: { $ref: '#/components/schemas/OutcomeType' }
+              order_total: { type: number, nullable: true }
+              currency: { type: string, nullable: true }
+              region: { type: string, nullable: true }
+              note: { type: string, nullable: true }
+              site_url: { type: string, nullable: true }
+              created_at: { type: string, format: date-time }
+
+    OutcomeRequest:
+      type: object
+      required: [phone, order_id, outcome_type]
+      properties:
+        phone: { type: string, minLength: 5 }
+        order_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Your own order reference. Half of the idempotency key.
+        outcome_type: { $ref: '#/components/schemas/OutcomeType' }
+        order_total: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3, example: MAD }
+        region: { type: string, maxLength: 100 }
+        note: { type: string, maxLength: 500 }
+
+    OutcomeResponse:
+      type: object
+      required: [ok, recorded, idempotent, phone, order_id, outcome_type]
+      properties:
+        ok: { type: boolean, const: true }
+        recorded:
+          type: boolean
+          description: |
+            True only when a new row was written. False for an idempotent
+            replay, and false when the number has been erased and is no
+            longer tracked — `message` distinguishes them. Do not treat
+            `ok: true` alone as "it landed".
+        idempotent: { type: boolean }
+        phone: { type: string }
+        order_id: { type: string }
+        outcome_type: { $ref: '#/components/schemas/OutcomeType' }
+        message: { type: string }
+
+    LicenseResponse:
+      type: object
+      required: [ok, license_status, plan, country, unlimited]
+      properties:
+        ok: { type: boolean, const: true }
+        license_status: { type: string, enum: [active, expired, suspended, revoked] }
+        plan: { type: string }
+        country: { type: string, const: MA }
+        daily_limit:
+          type: integer
+          nullable: true
+          description: Null means unlimited. Do not coerce null to 0 — that reads as "no quota left" and is the opposite of what it means.
+        daily_used: { type: integer }
+        unlimited: { type: boolean }
+        expires_at: { type: string, format: date-time, nullable: true }
+        renew_url: { type: string, format: uri }
+
+    WebhookEnvelope:
+      type: object
+      required: [id, event, data]
+      properties:
+        id: { type: string, description: Unique delivery id. Use it to de-duplicate; retries reuse it. }
+        event:
+          type: string
+          enum: [verification.completed, verification.flagged, risk.high_risk_detected]
+        data:
+          type: object
+          properties:
+            phone: { type: string }
+            country: { type: string, const: MA }
+            carrier: { type: string, nullable: true }
+            risk_score: { type: integer }
+            risk_level: { $ref: '#/components/schemas/RiskLevel' }
+            is_blacklisted: { type: boolean }
+            checked_at: { type: string, format: date-time }
+
+# ── Webhook signature — normative for every SDK ───────────────────────────
+# Written here rather than only in prose because eleven clients implement it
+# independently, and a verifier that "works" while skipping the timestamp
+# still accepts a replayed payload.
+x-numra-webhook-signature:
+  headers:
+    Numra-Signature: 'sha256=<hex>'
+    Numra-Timestamp: '<unix seconds>'
+  algorithm: |
+    HMAC-SHA256 over the exact string:  timestamp + "." + rawBody
+    keyed with the endpoint's signing secret, hex-encoded, prefixed "sha256=".
+  requirements:
+    - Verify against the RAW request body, before any JSON parsing. Re-serialising
+      the parsed object changes the bytes and every signature fails.
+    - Compare in constant time. A byte-by-byte early return leaks the signature.
+    - Reject a timestamp outside the tolerance window (default 300 seconds),
+      or a captured payload can be replayed for ever.
+    - De-duplicate on the envelope `id`. Retries reuse it, and a merchant
+      cancelling the same order twice is not a second event.
+  reference: packages/shared/webhook-signature.js
