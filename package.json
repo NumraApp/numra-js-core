@@ -1,0 +1,27 @@
+{
+  "name": "@numra/core",
+  "version": "1.0.0",
+  "description": "Numra API client — phone risk signals for cash-on-delivery orders. Server-side only, zero dependencies.",
+  "license": "MIT",
+  "homepage": "https://numra.ma",
+  "repository": { "type": "git", "url": "git+https://github.com/NumraApp/numra-js-core.git" },
+  "bugs": { "url": "https://github.com/NumraApp/numra-js-core/issues" },
+  "keywords": ["numra", "cod", "cash-on-delivery", "fraud", "morocco", "risk", "phone"],
+  "type": "module",
+  "sideEffects": false,
+  "engines": { "node": ">=22.12.0" },
+  "files": ["src", "index.d.ts", "LICENSE", "README.md"],
+  "main": "./src/index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "publishConfig": { "access": "public", "provenance": true }
+}

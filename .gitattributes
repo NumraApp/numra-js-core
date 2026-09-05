@@ -1,0 +1,13 @@
+# Line endings are normalised in the repository, whatever the contributor's
+# machine does locally. A CRLF that survives into a published tarball changes
+# every file's hash between platforms and breaks any file with a shebang.
+* text=auto eol=lf
+
+# Binary, so never touched.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary

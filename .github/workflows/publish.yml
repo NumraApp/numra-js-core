@@ -1,0 +1,180 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Release pipeline for one npm SDK
+# ───────────────────────────────────────────────────────────────────────────
+# Copy to .github/workflows/publish.yml in each SDK's own repo. It is a
+# template rather than a shared reusable workflow on purpose: eleven repos
+# that each pull a workflow from a twelfth means one bad edit stops every
+# release at once, and the thing this pipeline exists to protect against is
+# exactly that kind of single silent point of failure.
+#
+# Tag-triggered. Nothing publishes from a branch push, so a merge cannot
+# release by accident.
+#
+# PUBLISH ORDER — NOT OPTIONAL
+# Three packages have to be on npm before the other nine are tagged:
+#
+#     1.  @numra/core        (no dependencies)
+#     1.  @numra/browser     (no dependencies — independent of core, same step)
+#     2.  everything else
+#
+#         @numra/core     ← express, fastify, next, nuxt
+#         @numra/browser  ← react, vue, svelte, angular
+#
+# Tag a dependent first and its `npm ci` fails with `ETARGET No matching
+# version found for @numra/core@^1.0.0`, because the version it asks for does
+# not exist yet. That is a failed release, not a delayed one: the tag is
+# already pushed and the version number is burnt.
+#
+# The same order governs the lockfiles. A dependent's package-lock.json cannot
+# record an integrity hash for a tarball the registry does not have, so the
+# nine dependents carry a `resolved` URL with no `integrity` for their
+# @numra/* entry. npm fills it in on the first install after core and browser
+# are published — commit that. Every third-party dependency is fully pinned
+# either way, which is what the lockfile is for.
+#
+# THE GATE THAT MATTERS
+# `conformance` runs before publish. Eleven clients are built from
+# packages/shared/openapi.yaml, and an SDK that has drifted from it will
+# happily compile, pass its own unit tests, and then disagree with the API in
+# production about what a 429 means. If conformance fails, nothing ships.
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: Publish
+
+# ── Actions are pinned to full commit SHAs, not tags ──────────────────────────
+# A tag is mutable: whoever controls the action's repository can repoint `v4` at
+# any commit, and that commit then runs inside a job holding NPM_TOKEN and
+# `id-token: write`. This is a package that reads a fraud database — the tag
+# comment after each SHA is for humans, and the SHA is what actually runs.
+#
+# Resolved with `git ls-remote --tags <repo> <tag>` on 4 September 2026.
+# To move one: re-run that, replace the SHA, update the comment.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write        # npm provenance
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # `--include=dev` is not decoration. The Numra monorepo has
+      # `omit=dev` set in its npm config, which silently installs nothing
+      # from devDependencies and leaves you debugging a missing test runner.
+      - run: npm ci --include=dev
+
+      - name: Tag must match package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package.json $PKG."
+            echo "The manifest the portal shows is read from package.json, so"
+            echo "publishing this would put a version on npm that the portal"
+            echo "never reports. Fix one of them."
+            exit 1
+          fi
+
+      - run: npm test
+
+      - name: Conformance against the API contract
+        run: |
+          # The spec lives in the platform monorepo. Vendored here at the
+          # commit this SDK was verified against; see CONTRIBUTING.md.
+          node scripts/openapi-conformance.js
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --include=dev
+
+      # `npm publish` does not build. @numra/angular is the only SDK that has a
+      # compile step (Angular components must be compiled ahead of time), and
+      # without this its tarball is raw .ts with no entry point — every
+      # `import { NumraCheckService } from '@numra/angular'` fails with
+      # ERR_MODULE_NOT_FOUND, and a published version cannot be replaced.
+      #
+      # Detected rather than commented "angular only", so that a repo which
+      # grows a build later cannot silently start shipping unbuilt source.
+      - name: Build, if this package has one
+        run: |
+          if node -p "!!require('./package.json').scripts?.build" | grep -q true; then
+            npm run build
+          else
+            echo "No build script — the repo is what gets published."
+          fi
+
+      # --provenance ties the published tarball to this workflow run and this
+      # commit. For a package that reads a fraud database, "prove where this
+      # came from" is worth the one flag.
+      #
+      # ng-packagr writes the publishable package — its own manifest, with
+      # scripts and devDependencies stripped — to dist/. Publishing the repo
+      # root instead would ship the sources. The leading `./` is load-bearing:
+      # `npm publish dist` is a package SPEC, and npm will cheerfully publish
+      # an unrelated registry package called `dist` and report success.
+      - name: Publish
+        run: |
+          DIR=.
+          if [ -f dist/package.json ]; then DIR=./dist; fi
+          echo "Publishing $DIR"
+          npm publish "$DIR" --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Tell the platform what actually shipped, so the version merchants are
+      # shown is the one that published rather than one somebody typed.
+      #
+      # THE ENDPOINT DOES NOT EXIST YET. Release intake is currently
+      # session-authenticated; there is no token-authenticated route a CI job
+      # can use, and adding one means
+      # adding a credential class nobody has provisioned.
+      #
+      # So this step is conditional rather than aspirational. Unset, it says
+      # loudly what did not happen and who has to do it by hand. Set, it must
+      # work — `--fail` turns a 404 into a failed release rather than a silent
+      # success, which is the failure mode this whole file exists to avoid.
+      - name: Stamp the platform manifest
+        run: |
+          if [ -z "${NUMRA_STAMP_URL}" ]; then
+            {
+              echo "### Manifest not stamped"
+              echo ""
+              echo "\`NUMRA_STAMP_URL\` is unset, so the portal still shows the"
+              echo "previous version of \`${MANIFEST_KEY}\`. Update it by hand,"
+              echo "or add the release-intake endpoint and set the secret."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Manifest not stamped — NUMRA_STAMP_URL is unset."
+            exit 0
+          fi
+          curl -sS --fail-with-body -X POST "$NUMRA_STAMP_URL" \
+            -H "Authorization: Bearer $NUMRA_STAMP_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "$(node -p 'JSON.stringify({
+                  key: process.env.MANIFEST_KEY,
+                  package: require("./package.json").name,
+                  version: "v" + require("./package.json").version,
+                  kind: "npm"
+                })')"
+        env:
+          NUMRA_STAMP_URL: ${{ secrets.NUMRA_STAMP_URL }}
+          NUMRA_STAMP_TOKEN: ${{ secrets.NUMRA_STAMP_TOKEN }}
+          MANIFEST_KEY: numra-js-core
