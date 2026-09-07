@@ -236,7 +236,7 @@ Browser:
 | `@getnumra/svelte` | [numra-svelte](https://github.com/NumraApp/numra-svelte) |
 | `@getnumra/angular` | [numra-angular](https://github.com/NumraApp/numra-angular) |
 
-Documentation for all of them is at [numra.ma/docs](https://numra.ma/docs).
+Documentation for all of them is at [docs.numra.ma](https://docs.numra.ma).
 
 ## Licence
 
